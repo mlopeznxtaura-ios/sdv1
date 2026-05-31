@@ -1,0 +1,105 @@
+name: ViabilityScan Gate
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+  push:
+    branches: [main, master]
+
+jobs:
+  viabilityscan:
+    name: Repository Viability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for secret scanning
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ViabilityScan
+        run: |
+          pip install -e .
+
+      # Optional: install advanced tools for --full mode
+      # - name: Install Semgrep
+      #   run: pip install semgrep
+      # - name: Install Trivy
+      #   run: |
+      #     sudo apt-get install -y wget apt-transport-https gnupg
+      #     wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+      #     echo "deb https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+      #     sudo apt-get update && sudo apt-get install -y trivy
+
+      - name: Run ViabilityScan (MVP)
+        id: scan
+        run: |
+          viabilityscan scan . --output viability_report.json --ci
+        continue-on-error: true
+
+      - name: Upload scan report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: viability-report
+          path: viability_report.json
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = {};
+            try {
+              report = JSON.parse(fs.readFileSync('viability_report.json', 'utf8'));
+            } catch (e) {
+              console.log('Could not read report');
+              return;
+            }
+
+            const gate = report.gate || 'UNKNOWN';
+            const scores = report.scores || {};
+            const gateIcon = gate === 'PASS' ? '✅' : '❌';
+            const reasons = (report.gate_reasons || []).map(r => `- ${r}`).join('\n');
+
+            const body = `## ${gateIcon} ViabilityScan — ${gate}
+
+| Metric | Score | Threshold |
+|--------|-------|-----------|
+| **Viability** | ${scores.viability ?? '?'} | ≥ 75 |
+| Security | ${scores.security ?? '?'} | ≥ 70 |
+| Deployment | ${scores.deployment ?? '?'} | ≥ 60 |
+| Reliability | ${scores.reliability ?? '?'} | ≥ 60 |
+
+${reasons ? `**Gate failures:**\n${reasons}` : ''}
+
+<details>
+<summary>Next steps</summary>
+
+${report.next_frame_prediction || ''}
+
+Full report available in [workflow artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+</details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Enforce gate
+        if: steps.scan.outcome == 'failure'
+        run: |
+          echo "::error::ViabilityScan FAIL — merge blocked. See viability_report.json for remediation steps."
+          exit 1

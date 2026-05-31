@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "viabilityscan"
+version = "1.0.0"
+description = "Repository Viability & Deployment Readiness Engine"
+requires-python = ">=3.9"
+readme = "README.md"
+
+[project.scripts]
+viabilityscan = "viabilityscan.main:main"
+
+[project.optional-dependencies]
+full = ["semgrep", "checkov"]
+dashboard = ["nicegui>=1.4"]
+dev = ["pytest", "pytest-cov", "ruff"]
+
+[tool.coverage.run]
+source = ["viabilityscan"]
+omit = ["*/tests/*", "*/dashboard/*"]
+
+[tool.coverage.report]
+fail_under = 70

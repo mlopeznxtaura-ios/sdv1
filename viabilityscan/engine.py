@@ -15,6 +15,7 @@ from viabilityscan.layers.security_mvp import SecurityMVPLayer
 from viabilityscan.layers.deployment import DeploymentLayer
 from viabilityscan.layers.reliability import ReliabilityLayer
 from viabilityscan.layers.security_full import SecurityFullLayer
+from viabilityscan.layers.django_migrations import DjangoMigrationsLayer
 
 
 class ViabilityEngine:
@@ -45,6 +46,7 @@ class ViabilityEngine:
         sec_result = SecurityMVPLayer(self.repo).run()
         dep_result = DeploymentLayer(self.repo).run()
         rel_result = ReliabilityLayer(self.repo).run()
+        djm_result = DjangoMigrationsLayer(self.repo).run()
 
         full_result = {}
         if self.full:
@@ -55,6 +57,7 @@ class ViabilityEngine:
         sec_result = self._m2_prune(sec_result)
         dep_result = self._m2_prune(dep_result)
         rel_result = self._m2_prune(rel_result)
+        djm_result = self._m2_prune(djm_result)
 
         # M3 — weight findings, compute overall score
         scores = self._triangulation_scalar(sec_result, dep_result, rel_result)
@@ -78,6 +81,7 @@ class ViabilityEngine:
                 "security_mvp": sec_result,
                 "deployment": dep_result,
                 "reliability": rel_result,
+                "django_migrations": djm_result,
                 **({"security_full": full_result} if self.full else {}),
             },
             "next_frame_prediction": self._next_frame_prediction(gate, sec_result, dep_result, rel_result),

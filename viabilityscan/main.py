@@ -4,13 +4,16 @@ ViabilityScan CLI — scans a repository for production deployment viability.
 
 Usage:
     viabilityscan scan <repo_path> [--full] [--output report.json] [--ci]
+    viabilityscan rate-limits            # check GitHub API rate limits
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from viabilityscan.engine import ViabilityEngine
 from viabilityscan.reporter import Reporter
+from viabilityscan.github_limits import check_rate_limits, enforce_or_die
 
 
 def main():
@@ -23,6 +26,8 @@ Examples:
   viabilityscan scan .
   viabilityscan scan /path/to/repo --full --output report.json
   viabilityscan scan . --ci              # exits 1 on FAIL (for CI gates)
+  viabilityscan rate-limits              # check GitHub API rate limits
+  viabilityscan scan . --enforce-limits  # abort if rate limits are too low
         """
     )
     sub = parser.add_subparsers(dest="command")
@@ -35,14 +40,31 @@ Examples:
                         help="Output JSON report path (default: viability_report.json)")
     scan_p.add_argument("--ci", action="store_true",
                         help="CI mode: exit code 1 on FAIL (blocks pipeline)")
+    scan_p.add_argument("--enforce-limits", action="store_true",
+                        help="Check GitHub rate limits before scan; abort if exhausted")
+
+    limits_p = sub.add_parser("rate-limits", help="Check GitHub API rate limits")
 
     args = parser.parse_args()
+
+    if args.command == "rate-limits":
+        enforce_or_die(token=os.environ.get("GITHUB_TOKEN"))
+        return
 
     if args.command == "scan":
         repo = Path(args.repo_path).resolve()
         if not repo.exists():
             print(f"[ERROR] Path not found: {repo}", file=sys.stderr)
             sys.exit(2)
+
+        # Pre-flight rate limit check (if --enforce-limits)
+        if args.enforce_limits:
+            report = check_rate_limits(token=os.environ.get("GITHUB_TOKEN"))
+            if not report.ok:
+                print("\n❌ GitHub rate limits exhausted — aborting scan.", file=sys.stderr)
+                for f in report.failures:
+                    print(f"   • {f}", file=sys.stderr)
+                sys.exit(3)
 
         print(f"\n{'='*60}")
         print(f"  ViabilityScan v1.0  —  {repo.name}")

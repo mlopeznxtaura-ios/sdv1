@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ViabilityScan — NextAura</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f172a; --bg2: #1e293b; --bg3: #334155;
+    --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
+    --accent: #6366f1; --accent2: #818cf8;
+    --red: #ef4444; --green: #22c55e; --orange: #f97316; --yellow: #eab308; --blue: #3b82f6;
+    --radius: 8px;
+  }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    background: var(--bg2); padding: 16px 24px;
+    display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--bg3);
+  }
+  header .logo { font-size: 1.4rem; font-weight: 700; color: var(--accent2); }
+  header .sub { font-size: 0.8rem; color: var(--text3); }
+  .tabs {
+    display: flex; gap: 0;
+    background: var(--bg2); border-bottom: 1px solid var(--bg3);
+  }
+  .tab {
+    padding: 12px 24px; cursor: pointer; font-size: 0.9rem; font-weight: 500;
+    color: var(--text3); border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+  main { flex: 1; padding: 24px; max-width: 960px; margin: 0 auto; width: 100%; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--bg2); border: 1px solid var(--bg3);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 1.1rem; margin-bottom: 12px; }
+  input, textarea {
+    width: 100%; padding: 10px 14px; background: var(--bg);
+    border: 1px solid var(--bg3); border-radius: var(--radius);
+    color: var(--text); font-size: 0.9rem; font-family: inherit;
+    outline: none; transition: border-color 0.15s;
+  }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { min-height: 200px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.8rem; line-height: 1.5; resize: vertical; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 20px; border-radius: var(--radius); border: none;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-outline { background: transparent; border: 1px solid var(--bg3); color: var(--text); }
+  .btn-outline:hover { border-color: var(--accent); }
+  .status { font-size: 0.85rem; padding: 8px 0; }
+  .status.ok { color: var(--green); }
+  .status.err { color: var(--red); }
+  .status.loading { color: var(--yellow); }
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .score-card {
+    background: var(--bg); border: 1px solid var(--bg3); border-radius: var(--radius);
+    padding: 16px; text-align: center;
+  }
+  .score-card .label { font-size: 0.75rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .score-card .value { font-size: 2rem; font-weight: 700; }
+  .score-card .threshold { font-size: 0.7rem; color: var(--text3); margin-top: 4px; }
+  .score-card.pass .value { color: var(--green); }
+  .score-card.fail .value { color: var(--red); }
+  .gate-banner {
+    padding: 16px; border-radius: var(--radius); margin-bottom: 16px;
+    font-weight: 700; font-size: 1.2rem;
+  }
+  .gate-banner.pass { background: #052e16; color: var(--green); border: 1px solid #166534; }
+  .gate-banner.fail { background: #450a0a; color: var(--red); border: 1px solid #991b1b; }
+  .finding {
+    background: var(--bg); border: 1px solid var(--bg3); border-radius: var(--radius);
+    padding: 12px; margin-bottom: 8px;
+  }
+  .finding .title { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+  .finding .meta { font-size: 0.75rem; color: var(--text3); display: flex; gap: 12px; flex-wrap: wrap; }
+  .finding .remediation { font-size: 0.8rem; color: var(--accent2); margin-top: 6px; }
+  .severity { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+  .severity.CRITICAL { background: #7f1d1d; color: #fca5a5; }
+  .severity.HIGH { background: #78350f; color: #fdba74; }
+  .severity.MEDIUM { background: #713f12; color: #fde047; }
+  .severity.LOW { background: #1e3a5f; color: #93c5fd; }
+  .severity.INFO { background: var(--bg3); color: var(--text2); }
+  .log { background: #000; color: #a3e635; padding: 12px; border-radius: var(--radius);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto;
+    white-space: pre-wrap; line-height: 1.5; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--text3); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .mt { margin-top: 12px; }
+  .mb { margin-bottom: 12px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; background: var(--bg3); color: var(--text2); }
+  .repo-input-row { display: flex; gap: 8px; }
+  .repo-input-row input { flex: 1; }
+  .analysis-type { display: flex; gap: 16px; margin-top: 8px; }
+  .analysis-type label { font-size: 0.85rem; color: var(--text2); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+  .repo-item {
+    padding: 12px; border: 1px solid var(--bg3); border-radius: var(--radius);
+    margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .repo-item:hover { border-color: var(--accent); background: rgba(99,102,241,0.05); }
+  .repo-name { font-weight: 600; font-size: 0.95rem; }
+  .repo-meta { font-size: 0.75rem; color: var(--text3); display: flex; gap: 12px; margin-top: 4px; }
+  .repo-desc { font-size: 0.8rem; color: var(--text2); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">&#x2B21; ViabilityScan</span>
+  <span class="sub">Deployment Readiness Engine — IBM Watsonx + Cloudflare Edge</span>
+  <span style="flex:1"></span>
+  <span id="user-area">
+    <a href="/auth/login" class="btn btn-outline btn-sm" id="btn-login">&#x1F512; Login with GitHub</a>
+    <span id="user-info" style="display:none">
+      <img id="user-avatar" src="" width="28" height="28" style="border-radius:50%;vertical-align:middle">
+      <span id="user-name" style="margin:0 8px;color:var(--text)"></span>
+      <button class="btn btn-outline btn-sm" onclick="location.href='/auth/login'">Switch</button>
+    </span>
+  </span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-panel="ingest">&#x1F4E5; Ingest</div>
+  <div class="tab" data-panel="analyze">&#x1F52C; Analyze</div>
+  <div class="tab" data-panel="report">&#x1F4CA; Report</div>
+</div>
+
+<main>
+  <!-- INGEST PANEL -->
+  <div class="panel active" id="panel-ingest">
+    <!-- Repo browser (shown when logged in) -->
+    <div id="repo-browser" style="display:none">
+      <div class="card">
+        <h2>Your Repositories</h2>
+        <div class="row" style="margin-bottom:12px">
+          <input id="repo-search" type="text" placeholder="Filter repos..." style="max-width:300px" oninput="filterRepos()">
+          <button class="btn btn-outline btn-sm" onclick="loadRepos()">&#x1F504; Refresh</button>
+        </div>
+        <div id="repo-list" style="max-height:400px;overflow-y:auto">
+          <p style="color:var(--text3)">Loading repositories...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Repository URL</h2>
+      <div class="repo-input-row">
+        <input id="repo-url" type="text" placeholder="https://github.com/user/repo.git or paste a repo path">
+        <button class="btn btn-outline" id="btn-fetch">Fetch</button>
+      </div>
+      <div class="analysis-type">
+        <label><input type="radio" name="mode" value="mvp" checked> MVP (fast)</label>
+        <label><input type="radio" name="mode" value="full"> Full (deep scan)</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Or Paste Code Directly</h2>
+      <textarea id="code-input" placeholder="Paste your code, Dockerfile, requirements.txt, or any file content here...&#10;&#10;The IBM Granite model will analyze it for security, deployment, and reliability issues."></textarea>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <button class="btn btn-primary" id="btn-scan">&#x1F680; Run ViabilityScan</button>
+        <span class="status" id="scan-status"></span>
+      </div>
+      <div class="log mt" id="scan-log" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ANALYZE PANEL -->
+  <div class="panel" id="panel-analyze">
+    <div id="analyze-empty" class="card" style="text-align:center; padding: 40px;">
+      <p style="color:var(--text3)">No scan results yet. Run a scan in the Ingest tab.</p>
+    </div>
+    <div id="analyze-content" style="display:none"></div>
+  </div>
+
+  <!-- REPORT PANEL -->
+  <div class="panel" id="panel-report">
+    <div id="report-empty" class="card" style="text-align:center; padding: 40px;">
+      <p style="color:var(--text3)">No scan results yet.</p>
+    </div>
+    <div id="report-content" style="display:none"></div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+let scanResult = null;
+let allRepos = [];
+let currentUser = null;
+
+// ── Auth check on load ──────────────────────────────────────────────
+(async function init() {
+  try {
+    const resp = await fetch('/api/user');
+    if (resp.ok) {
+      currentUser = await resp.json();
+      showLoggedIn(currentUser);
+      loadRepos();
+    }
+  } catch(e) {}
+})();
+
+function showLoggedIn(user) {
+  document.getElementById('btn-login').style.display = 'none';
+  document.getElementById('user-info').style.display = '';
+  document.getElementById('user-avatar').src = user.avatar;
+  document.getElementById('user-name').textContent = user.login;
+  document.getElementById('repo-browser').style.display = '';
+}
+
+function showLoggedOut() {
+  document.getElementById('btn-login').style.display = '';
+  document.getElementById('user-info').style.display = 'none';
+  document.getElementById('repo-browser').style.display = 'none';
+}
+
+// ── Repo browser ────────────────────────────────────────────────────
+async function loadRepos() {
+  const list = document.getElementById('repo-list');
+  list.innerHTML = '<p style="color:var(--text3)">Loading...</p>';
+  try {
+    const resp = await fetch('/api/repos');
+    if (!resp.ok) {
+      list.innerHTML = '<p style="color:var(--red)">Failed to load repos. Try logging in again.</p>';
+      return;
+    }
+    allRepos = await resp.json();
+    renderRepoList(allRepos);
+  } catch(e) {
+    list.innerHTML = '<p style="color:var(--red)">Error: ' + e.message + '</p>';
+  }
+}
+
+function renderRepoList(repos) {
+  const list = document.getElementById('repo-list');
+  if (!repos.length) {
+    list.innerHTML = '<p style="color:var(--text3)">No repositories found.</p>';
+    return;
+  }
+  list.innerHTML = repos.map(r => `
+    <div class="repo-item" onclick="ingestRepo('${esc(r.full_name)}','${esc(r.default_branch)}')">
+      <div class="repo-name">
+        ${r.private ? '&#x1F512;' : '&#x1F4C2;'} ${esc(r.full_name)}
+      </div>
+      <div class="repo-meta">
+        <span>${esc(r.language || '?')}</span>
+        <span>&#x2B50; ${r.stargazers_count}</span>
+        <span>Updated ${timeAgo(r.updated_at)}</span>
+      </div>
+      ${r.description ? '<div class="repo-desc">' + esc(r.description) + '</div>' : ''}
+    </div>
+  `).join('');
+}
+
+function filterRepos() {
+  const q = document.getElementById('repo-search').value.toLowerCase();
+  if (!q) { renderRepoList(allRepos); return; }
+  renderRepoList(allRepos.filter(r => r.full_name.toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q)));
+}
+
+async function ingestRepo(fullName, branch) {
+  const [owner, repo] = fullName.split('/');
+  document.getElementById('repo-url').value = `https://github.com/${fullName}`;
+  setStatus('Ingesting ' + fullName + '...', 'loading');
+  showLog(true);
+  log('[INGEST] Fetching repository structure...');
+
+  try {
+    // Fetch repo contents
+    const resp = await fetch('/api/repo-files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner, repo }),
+    });
+    if (!resp.ok) throw new Error('Failed to fetch repo');
+    
+    const files = await resp.json();
+    log(`[INGEST] Found ${files.length} items in root`);
+
+    // Fetch key files for analysis
+    const keyFiles = ['README.md','Dockerfile','docker-compose.yml','requirements.txt','pyproject.toml','setup.py','package.json','Makefile','.github/workflows'];
+    let code = `# Repository: ${fullName}\n# Branch: ${branch}\n\n`;
+    let fetched = 0;
+
+    for (const item of files) {
+      if (item.type !== 'file') continue;
+      const name = item.name;
+      const isKey = keyFiles.some(k => name.toLowerCase().includes(k.toLowerCase()));
+      const isCode = /\.(py|js|ts|jsx|tsx|go|rs|java|rb|php|yaml|yml|toml|json|md|sh)$/i.test(name);
+      
+      if (isKey || isCode) {
+        try {
+          const fileResp = await fetch('/api/repo-files', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner, repo, path: item.path }),
+          });
+          if (fileResp.ok) {
+            const fileData = await fileResp.json();
+            if (fileData.content) {
+              const decoded = atob(fileData.content.replace(/\s/g, ''));
+              code += `\n# === ${item.path} ===\n${decoded.slice(0, 5000)}\n`;
+              fetched++;
+            }
+          }
+        } catch(e) {}
+      }
+    }
+
+    log(`[INGEST] Fetched ${fetched} files for analysis`);
+    document.getElementById('code-input').value = code.slice(0, 30000);
+    setStatus(`Ingested ${fetched} files from ${fullName} — ready to scan`, 'ok');
+  } catch(e) {
+    log(`[ERROR] ${e.message}`);
+    setStatus('Ingest failed: ' + e.message, 'err');
+  }
+}
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  const days = Math.floor(hours / 24);
+  if (days < 30) return days + 'd ago';
+  return Math.floor(days / 30) + 'mo ago';
+}
+
+// Tab switching
+$$('.tab').forEach(t => t.addEventListener('click', () => {
+  $$('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $$('.panel').forEach(x => x.classList.remove('active'));
+  $('#panel-' + t.dataset.panel).classList.add('active');
+  if (t.dataset.panel === 'analyze') renderAnalyze();
+  if (t.dataset.panel === 'report') renderReport();
+}));
+
+// Fetch repo
+$('#btn-fetch').addEventListener('click', async () => {
+  const url = $('#repo-url').value.trim();
+  if (!url) return;
+  setStatus('Fetching repository...', 'loading');
+  try {
+    const resp = await fetch('/api/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await resp.json();
+    if (data.content) {
+      $('#code-input').value = data.content;
+    }
+    setStatus('Fetched successfully', 'ok');
+  } catch(e) {
+    setStatus('Fetch failed: ' + e.message, 'err');
+  }
+});
+
+// Run scan
+$('#btn-scan').addEventListener('click', async () => {
+  const code = $('#code-input').value.trim();
+  const url = $('#repo-url').value.trim();
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+
+  if (!code && !url) {
+    setStatus('Provide a repo URL or paste code.', 'err');
+    return;
+  }
+
+  const btn = $('#btn-scan');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Scanning...';
+  setStatus('Scanning with IBM Granite...', 'loading');
+  showLog(true);
+  log('[INIT] Starting viability scan');
+  log('[INIT] Driver: IBM Watsonx Granite model');
+  log('[M1] Analyzing code with AI...');
+
+  try {
+    const resp = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, url, mode }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(err || 'API error ' + resp.status);
+    }
+
+    scanResult = await resp.json();
+    log('[DONE] Gate: ' + scanResult.gate + '  Score: ' + scanResult.scores.viability);
+    setStatus((scanResult.gate === 'PASS' ? 'PASS' : 'FAIL') + ' — Viability: ' + scanResult.scores.viability, scanResult.gate === 'PASS' ? 'ok' : 'err');
+    renderAnalyze();
+    renderReport();
+    // Switch to report
+    $$('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelector('.tab[data-panel="report"]').classList.add('active');
+    $$('.panel').forEach(x => x.classList.remove('active'));
+    $('#panel-report').classList.add('active');
+  } catch(e) {
+    log('[ERROR] ' + e.message);
+    setStatus(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '&#x1F680; Run ViabilityScan';
+  }
+});
+
+function renderAnalyze() {
+  if (!scanResult) return;
+  $('#analyze-empty').style.display = 'none';
+  const el = $('#analyze-content');
+  el.style.display = 'block';
+  el.innerHTML = '';
+
+  const allFindings = [];
+  for (const [name, layer] of Object.entries(scanResult.layers || {})) {
+    allFindings.push(...(layer.findings || []));
+  }
+
+  if (allFindings.length === 0) {
+    el.innerHTML = '<div class="card" style="text-align:center"><p style="color:var(--green)">No findings — repository looks clean!</p></div>';
+    return;
+  }
+
+  const bySeverity = {};
+  for (const f of allFindings) {
+    const sev = f.severity || 'INFO';
+    if (!bySeverity[sev]) bySeverity[sev] = [];
+    bySeverity[sev].push(f);
+  }
+
+  for (const sev of ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']) {
+    const group = bySeverity[sev];
+    if (!group || !group.length) continue;
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = '<h2><span class="severity ' + sev + '">' + sev + '</span> ' + group.length + ' finding' + (group.length > 1 ? 's' : '') + '</h2>';
+    for (const f of group) {
+      div.innerHTML += '' +
+        '<div class="finding">' +
+          '<div class="title">' + esc(f.title) + '</div>' +
+          '<div class="meta">' +
+            '<span>&#x1F4C1; ' + esc(f.file || '?') + '</span>' +
+            (f.line ? '<span>L' + f.line + '</span>' : '') +
+            '<span class="tag">' + esc(f.layer || '?') + '</span>' +
+          '</div>' +
+          (f.remediation ? '<div class="remediation">&#x1F4A1; ' + esc(f.remediation) + '</div>' : '') +
+        '</div>';
+    }
+    el.appendChild(div);
+  }
+}
+
+function renderReport() {
+  if (!scanResult) return;
+  $('#report-empty').style.display = 'none';
+  const el = $('#report-content');
+  el.style.display = 'block';
+
+  var scores = scanResult.scores;
+  var gate = scanResult.gate;
+  var reasons = scanResult.gate_reasons || [];
+  var next = scanResult.next_frame_prediction || '';
+
+  el.innerHTML = '' +
+    '<div class="gate-banner ' + (gate === 'PASS' ? 'pass' : 'fail') + '">' +
+      (gate === 'PASS' ? 'PASS' : 'FAIL') + ' — Phase Gate' +
+    '</div>' +
+    reasons.map(function(r) { return '<p class="status err mb">&#x26A0; ' + esc(r) + '</p>'; }).join('') +
+    '<div class="score-grid mb">' +
+      [
+        ['Viability', 'viability', 75],
+        ['Security', 'security', 70],
+        ['Deployment', 'deployment', 60],
+        ['Reliability', 'reliability', 60],
+      ].map(function(item) {
+        var label = item[0], key = item[1], threshold = item[2];
+        var val = scores[key] || 0;
+        return '<div class="score-card ' + (val >= threshold ? 'pass' : 'fail') + '">' +
+          '<div class="label">' + label + '</div>' +
+          '<div class="value">' + val + '</div>' +
+          '<div class="threshold">&#x2265;' + threshold + '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+    '<div class="card">' +
+      '<h2>&#x1F52E; Next Steps</h2>' +
+      '<p>' + esc(next || 'Review findings and improve sub-scores.') + '</p>' +
+    '</div>' +
+    '<button class="btn btn-outline" onclick="exportJSON()">&#x1F4BE; Export JSON Report</button>';
+}
+
+function exportJSON() {
+  if (!scanResult) return;
+  var blob = new Blob([JSON.stringify(scanResult, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'viability_report.json';
+  a.click();
+}
+
+function setStatus(msg, type) {
+  var el = $('#scan-status');
+  el.textContent = msg;
+  el.className = 'status ' + type;
+}
+
+function showLog(show) {
+  $('#scan-log').style.display = show ? 'block' : 'none';
+}
+
+function log(msg) {
+  var el = $('#scan-log');
+  var time = new Date().toLocaleTimeString();
+  el.textContent += '[' + time + '] ' + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+function esc(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+
+</body>
+</html>

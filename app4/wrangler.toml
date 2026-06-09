@@ -1,0 +1,12 @@
+name = "app4-nextaura-worker"
+main = "worker/index.js"
+compatibility_date = "2025-06-09"
+compatibility_flags = ["nodejs_compat"]
+
+routes = [
+  { pattern = "app4.nextaura.fit/*", zone_id = "54e5f3d558f32ce69cce38e6fdb2db1f" },
+  { pattern = "app4.nextaura.fit", zone_id = "54e5f3d558f32ce69cce38e6fdb2db1f" }
+]
+
+[vars]
+DRIVER = "IBM Watsonx Granite"

@@ -7,6 +7,7 @@ Scoring formula (from spec id:6):
 """
 
 import json
+import logging
 import time
 from pathlib import Path
 from datetime import datetime, timezone
@@ -16,6 +17,8 @@ from viabilityscan.layers.deployment import DeploymentLayer
 from viabilityscan.layers.reliability import ReliabilityLayer
 from viabilityscan.layers.security_full import SecurityFullLayer
 from viabilityscan.layers.django_migrations import DjangoMigrationsLayer
+
+logger = logging.getLogger("viabilityscan.engine")
 
 
 class ViabilityEngine:
@@ -42,7 +45,7 @@ class ViabilityEngine:
         metadata = self._binary_scalar()
 
         # M1 — unbounded scan across all layers
-        print("[M1] Scanning all layers...")
+        logger.info("M1: Scanning all layers...")
         sec_result = SecurityMVPLayer(self.repo).run()
         dep_result = DeploymentLayer(self.repo).run()
         rel_result = ReliabilityLayer(self.repo).run()
@@ -50,7 +53,7 @@ class ViabilityEngine:
 
         full_result = {}
         if self.full:
-            print("[M1] Running full advanced security layer...")
+            logger.info("M1: Running full advanced security layer...")
             full_result = SecurityFullLayer(self.repo).run()
 
         # M2 — prune false positives, enforce timeouts

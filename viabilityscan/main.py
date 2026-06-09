@@ -8,12 +8,16 @@ Usage:
 """
 
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
 from viabilityscan.engine import ViabilityEngine
 from viabilityscan.reporter import Reporter
 from viabilityscan.github_limits import check_rate_limits, enforce_or_die
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+logger = logging.getLogger("viabilityscan")
 
 
 def main():

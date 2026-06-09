@@ -9,6 +9,7 @@ Run:     python dashboard/app.py
 import json
 import threading
 from pathlib import Path
+from datetime import datetime, timezone
 
 try:
     from nicegui import ui, app as ngapp
@@ -39,6 +40,18 @@ def build_app():
         "result": None,
         "log": [],
     }
+
+    # Health check endpoints
+    @ngapp.get('/healthz')
+    @ngapp.get('/readyz')
+    @ngapp.get('/api/health')
+    def health_check():
+        return {
+            'status': 'ok',
+            'service': 'ViabilityScan Dashboard',
+            'version': '1.0.0',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
 
     with ui.header(elevated=True).classes("bg-slate-900 text-white"):
         ui.label("⬡ ViabilityScan").classes("text-2xl font-mono font-bold")
